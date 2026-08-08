@@ -1,0 +1,48 @@
+Act as an expert Full-Stack Developer. I need you to build a comprehensive Web Application for Foreign Personnel and Immigration Document Management for a company in Vietnam. 
+Target audience: HR managing around 200 Chinese expats. 
+UI Language: Strictly Vietnamese.
+
+Tech Stack Recommendation: 
+- Backend: Python (Flask or FastAPI) - crucial for easy MS Word manipulation (`docxtpl`) and OCR (`pytesseract`).
+- Frontend: HTML, CSS, JavaScript (Bootstrap 5 or Tailwind CSS), Chart.js for charts.
+- Database: SQLite (for rapid Replit deployment) or PostgreSQL.
+
+Core Modules & Requirements:
+
+1. EMPLOYEE & DATA MANAGEMENT
+- Create a CRUD interface for employees.
+- Fields mapping logic: The system must map specific database fields to predefined keys (like T1, T2, etc.) so they can be injected into Word templates later. 
+  - Họ tên (Name) -> maps to {{T1}}
+  - Ngày sinh (DOB) -> maps to {{T2}}
+  - Giới tính (Gender) -> maps to {{T3}}
+  - Quốc tịch (Nationality - dropdown, default "Trung Quốc") -> maps to {{T4}}
+  - Số hộ chiếu (Passport No.) -> maps to {{T5}}
+  - Ngày hết hạn hộ chiếu (Passport Expiry) -> maps to {{T6}}
+  - Số Visa (Visa No.) -> maps to {{T7}}
+  - Ngày hết hạn Visa (Visa Expiry) -> maps to {{T8}}
+  - Tên công ty (Company) -> maps to {{T9}}
+  - Chức vụ (Position) -> maps to {{T10}}
+  - SĐT (Phone) -> maps to {{T11}}
+  - Email -> maps to {{T12}}
+  - Địa chỉ tạm trú (Temporary Address) -> maps to {{T13}}
+- Document Tracking (One-to-Many): A sub-section to track documents (Visa, TRC, Experience Certificate, Consular Legalization - allow adding new types). Fields: Doc Type, ID Number, Status, Issue Date, Expiry Date. 
+- History & Progress Tracking: When a document expires or is updated, the system must allow users to update the progress/status and save the old record in a "History Log" for that specific employee.
+- OCR Feature: Add an upload button for Passport/Visa images. Use `pytesseract` to extract text from the image and auto-fill the form fields (Name, Passport No, Expiry Dates) as an initial draft.
+
+2. DOSSIER & IMMIGRATION FORMS MANAGEMENT (.docx)
+- Template Manager: Provide an interface to upload, update, and delete Microsoft Word templates (.docx format ONLY) like NA2, NA5, NA8. 
+- Batch Processing & Auto-fill: In the employee list view, add checkboxes to select multiple employees. Add a "Tạo hồ sơ" (Generate Documents) button. When clicked, prompt the user to select an uploaded .docx template.
+- Output: Use the `docxtpl` Python library. The system will read the selected .docx file, find Jinja2-style tags (e.g., {{T1}}, {{T2}}), and replace them with the corresponding mapped data of the selected employees. Generate and allow the user to download the filled documents as `.docx` (if multiple employees, zip them).
+
+3. DASHBOARD & ANALYTICS
+- Overview Stats: Total active employees, resigned employees.
+- Reminders/Alerts (Tables with color indicators): 
+  - Passports/Visas/Documents expiring in 30, 60, or 90 days.
+  - Highlight employees missing required documents.
+- Charts (Chart.js):
+  - Document Status Pie Chart.
+  - Expiration forecast by month Bar Chart.
+
+EXECUTION INSTRUCTIONS FOR AI:
+- Build incrementally. Step 1: Database Models & Dashboard. Step 2: Employee CRUD & Document tracking with History. Step 3: Docx Template generation logic. Step 4: OCR implementation.
+- Provide clear `requirements.txt`.

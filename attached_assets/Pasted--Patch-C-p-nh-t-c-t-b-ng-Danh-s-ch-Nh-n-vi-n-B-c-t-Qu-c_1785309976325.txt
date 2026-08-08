@@ -1,0 +1,202 @@
+# Patch: Cập nhật cột bảng Danh sách Nhân viên
+
+Bỏ cột Quốc tịch, Trạng thái.  
+Thêm cột: Số Visa, Thẻ tạm trú, GPLD, LLTP, GKSK.
+
+---
+
+## BƯỚC 1 — Sửa `lib/api-spec/openapi.yaml`
+
+Tìm đoạn này trong schema `Employee` (khoảng dòng 495–500):
+
+```yaml
+        visaNo:
+          type: ["string", "null"]
+        visaExpiry:
+          type: ["string", "null"]
+        company:
+```
+
+Thay bằng:
+
+```yaml
+        visaNo:
+          type: ["string", "null"]
+        visaExpiry:
+          type: ["string", "null"]
+        trcNo:
+          type: ["string", "null"]
+        gpldNo:
+          type: ["string", "null"]
+        lltpNo:
+          type: ["string", "null"]
+        gkskNo:
+          type: ["string", "null"]
+        company:
+```
+
+---
+
+## BƯỚC 2 — Chạy codegen (Terminal)
+
+```bash
+pnpm --filter @workspace/api-spec run codegen
+```
+
+Chờ đến khi hiện `Your OpenAPI spec has been converted` là xong.
+
+---
+
+## BƯỚC 3 — Sửa `artifacts/api-server/src/routes/employees.ts`
+
+### 3a. Thêm `inArray` vào import (dòng đầu file)
+
+Tìm:
+```typescript
+import { eq, ilike, and, or } from "drizzle-orm";
+```
+
+Thay bằng:
+```typescript
+import { eq, ilike, and, or, inArray } from "drizzle-orm";
+```
+
+### 3b. Thay đoạn cuối route `GET /employees`
+
+Tìm dòng này (gần cuối route GET /employees):
+```typescript
+  res.json(ListEmployeesResponse.parse(rows.map(serializeDates)));
+```
+
+Xóa dòng đó, paste đoạn sau vào thay thế:
+
+```typescript
+  // Enrich with document summary fields (TRC, GPLD, LLTP, GKSK)
+  const empIds = rows.map((e) => e.id);
+  const docRows = empIds.length > 0
+    ? await db
+        .select({
+          employeeId: documentsTable.employeeId,
+          docType: documentsTable.docType,
+          idNumber: documentsTable.idNumber,
+        })
+        .from(documentsTable)
+        .where(
+          and(
+            inArray(documentsTable.employeeId, empIds),
+            inArray(documentsTable.docType, [
+              "Thẻ tạm trú (TRC)",
+              "Giấy phép lao động",
+              "Lý lịch tư pháp (LLTP)",
+              "Giấy khám sức khỏe",
+            ])
+          )
+        )
+    : [];
+
+  const docMap = new Map<number, Record<string, string | null>>();
+  for (const doc of docRows) {
+    if (!docMap.has(doc.employeeId)) docMap.set(doc.employeeId, {});
+    docMap.get(doc.employeeId)![doc.docType] = doc.idNumber ?? null;
+  }
+
+  const enriched = rows.map(serializeDates).map((emp) => ({
+    ...emp,
+    trcNo: docMap.get(emp.id)?.["Thẻ tạm trú (TRC)"] ?? null,
+    gpldNo: docMap.get(emp.id)?.["Giấy phép lao động"] ?? null,
+    lltpNo: docMap.get(emp.id)?.["Lý lịch tư pháp (LLTP)"] ?? null,
+    gkskNo: docMap.get(emp.id)?.["Giấy khám sức khỏe"] ?? null,
+  }));
+
+  res.json(ListEmployeesResponse.parse(enriched));
+```
+
+---
+
+## BƯỚC 4 — Sửa `artifacts/hrm/src/pages/Employees.tsx`
+
+### 4a. Xóa import Badge (không dùng nữa)
+
+Tìm và xóa dòng:
+```typescript
+import { Badge } from "@/components/ui/badge";
+```
+
+### 4b. Thay toàn bộ `<thead>` của bảng
+
+Tìm đoạn `<thead>` hiện tại (có các cột Quốc tịch, Trạng thái), thay bằng:
+
+```tsx
+<thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-slate-900 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
+  <tr>
+    <th className="px-4 py-3 font-medium w-12 text-center">
+      <input type="checkbox" 
+        checked={employees?.length > 0 && selectedIds.size === employees.length}
+        onChange={toggleAll}
+        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" 
+      />
+    </th>
+    <th className="px-4 py-3 font-medium">Họ và tên</th>
+    <th className="px-4 py-3 font-medium">Hộ chiếu</th>
+    <th className="px-4 py-3 font-medium">Số Visa</th>
+    <th className="px-4 py-3 font-medium">Thẻ tạm trú</th>
+    <th className="px-4 py-3 font-medium">GPLD</th>
+    <th className="px-4 py-3 font-medium">LLTP</th>
+    <th className="px-4 py-3 font-medium">GKSK</th>
+    <th className="px-4 py-3 font-medium">Công ty / Chức vụ</th>
+    <th className="px-4 py-3 font-medium text-right">Thao tác</th>
+  </tr>
+</thead>
+```
+
+### 4c. Đổi colSpan từ 7 thành 10
+
+Tìm 2 chỗ có `colSpan={7}`, đổi thành `colSpan={10}`.
+
+### 4d. Thay các ô `<td>` trong mỗi hàng nhân viên
+
+Tìm đoạn từ ô Họ và tên đến ô Thao tác, thay bằng:
+
+```tsx
+<td className="px-4 py-3">
+  <Link href={`/nhan-vien/${emp.id}`} className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+    {emp.fullName}
+  </Link>
+  <div className="text-xs text-slate-500">{emp.phone || emp.email || 'Không có liên hệ'}</div>
+</td>
+<td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-mono text-xs">
+  {emp.passportNo || '-'}
+</td>
+<td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-mono text-xs">
+  {emp.visaNo || '-'}
+</td>
+<td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-mono text-xs">
+  {emp.trcNo || '-'}
+</td>
+<td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-mono text-xs">
+  {emp.gpldNo || '-'}
+</td>
+<td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-mono text-xs">
+  {emp.lltpNo || '-'}
+</td>
+<td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-mono text-xs">
+  {emp.gkskNo || '-'}
+</td>
+<td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+  <div>{emp.company || '-'}</div>
+  <div className="text-xs text-slate-500">{emp.position || '-'}</div>
+</td>
+<td className="px-4 py-3 text-right">
+  <Link href={`/nhan-vien/${emp.id}`} className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-50 h-8 w-8 p-0 opacity-0 group-hover:opacity-100">
+    <MoreHorizontal className="w-4 h-4" />
+  </Link>
+</td>
+```
+
+---
+
+## BƯỚC 5 — Restart workflow
+
+Trong Replit, nhấn **Stop** rồi **Run** lại cả hai workflow:
+- `artifacts/api-server: API Server`
+- `artifacts/hrm: web`

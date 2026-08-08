@@ -1,0 +1,1070 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: HR Management API for Foreign Personnel
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: employees
+    description: Employee management
+  - name: documents
+    description: Document tracking
+  - name: templates
+    description: DOCX template management
+  - name: dashboard
+    description: Dashboard and analytics
+  - name: ocr
+    description: OCR processing
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /employees:
+    get:
+      operationId: listEmployees
+      tags: [employees]
+      summary: List all employees
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, resigned]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      summary: Create a new employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeInput"
+      responses:
+        "201":
+          description: Created employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+
+  /employees/{id}:
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      summary: Get employee by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateEmployee
+      tags: [employees]
+      summary: Update employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeUpdate"
+      responses:
+        "200":
+          description: Updated employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+    delete:
+      operationId: deleteEmployee
+      tags: [employees]
+      summary: Delete employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /employees/{id}/photo:
+    post:
+      operationId: uploadEmployeePhoto
+      tags: [employees]
+      summary: Upload employee photo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/PhotoUpload"
+      responses:
+        "200":
+          description: Updated employee with photo URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "404":
+          description: Not found
+
+  /employees/{id}/documents:
+    get:
+      operationId: listEmployeeDocuments
+      tags: [documents]
+      summary: List documents for an employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+    post:
+      operationId: createEmployeeDocument
+      tags: [documents]
+      summary: Add a document to an employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInput"
+      responses:
+        "201":
+          description: Created document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+
+  /documents/{id}:
+    patch:
+      operationId: updateDocument
+      tags: [documents]
+      summary: Update a document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentUpdate"
+      responses:
+        "200":
+          description: Updated document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+    delete:
+      operationId: deleteDocument
+      tags: [documents]
+      summary: Delete a document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /documents/{id}/history:
+    get:
+      operationId: getDocumentHistory
+      tags: [documents]
+      summary: Get history log for a document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: History entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocumentHistory"
+
+  /templates:
+    get:
+      operationId: listTemplates
+      tags: [templates]
+      summary: List all DOCX templates
+      responses:
+        "200":
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocxTemplate"
+    post:
+      operationId: uploadTemplate
+      tags: [templates]
+      summary: Upload a new DOCX template
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/TemplateUpload"
+      responses:
+        "201":
+          description: Uploaded template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocxTemplate"
+
+  /templates/{id}:
+    delete:
+      operationId: deleteTemplate
+      tags: [templates]
+      summary: Delete a template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /generate-docs:
+    post:
+      operationId: generateDocs
+      tags: [templates]
+      summary: Generate DOCX files for selected employees using a template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateDocsInput"
+      responses:
+        "200":
+          description: ZIP or single DOCX file
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+
+  /import-employees/parse:
+    post:
+      operationId: parseImportFile
+      tags: [employees]
+      summary: Parse Excel or PDF file and extract employee data (T1-T13)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/ImportFileUpload"
+      responses:
+        "200":
+          description: Parsed employee rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportParseResult"
+        "400":
+          description: Bad request
+
+  /import-employees/confirm:
+    post:
+      operationId: confirmImport
+      tags: [employees]
+      summary: Save parsed employee rows into the database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportConfirmInput"
+      responses:
+        "200":
+          description: Import results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportConfirmResult"
+
+  /ocr:
+    post:
+      operationId: ocrPassport
+      tags: [ocr]
+      summary: Extract text from passport/visa image using OCR
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/OcrInput"
+      responses:
+        "200":
+          description: Extracted OCR data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OcrResult"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get overview statistics
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /dashboard/expiring:
+    get:
+      operationId: getExpiringDocuments
+      tags: [dashboard]
+      summary: Get documents expiring within specified days
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 90
+      responses:
+        "200":
+          description: Expiring documents with employee info
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExpiringDocument"
+
+  /dashboard/missing-docs:
+    get:
+      operationId: getMissingDocs
+      tags: [dashboard]
+      summary: Get employees missing required documents
+      responses:
+        "200":
+          description: Employees with missing docs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MissingDocEmployee"
+
+  /dashboard/charts:
+    get:
+      operationId: getDashboardCharts
+      tags: [dashboard]
+      summary: Get chart data for dashboard
+      responses:
+        "200":
+          description: Chart data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChartData"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Employee:
+      type: object
+      required:
+        - id
+        - fullName
+        - nationality
+        - status
+        - createdAt
+      properties:
+        id:
+          type: integer
+        fullName:
+          type: string
+        dob:
+          type: ["string", "null"]
+        gender:
+          type: ["string", "null"]
+          enum: [Nam, Nữ, Khác, null]
+        nationality:
+          type: string
+        cccd:
+          type: ["string", "null"]
+        passportNo:
+          type: ["string", "null"]
+        passportExpiry:
+          type: ["string", "null"]
+        visaNo:
+          type: ["string", "null"]
+        visaExpiry:
+          type: ["string", "null"]
+        trcNo:
+          type: ["string", "null"]
+        gpldNo:
+          type: ["string", "null"]
+        lltpNo:
+          type: ["string", "null"]
+        gkskNo:
+          type: ["string", "null"]
+        company:
+          type: ["string", "null"]
+        position:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        tempAddress:
+          type: ["string", "null"]
+        employeeCode:
+          type: ["string", "null"]
+        workPeriod:
+          type: ["string", "null"]
+        cuaKhau:
+          type: ["string", "null"]
+          description: "Cửa khẩu nhập cảnh"
+        photoUrl:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, resigned]
+        createdAt:
+          type: string
+        updatedAt:
+          type: ["string", "null"]
+
+    EmployeeDetail:
+      type: object
+      required:
+        - id
+        - fullName
+        - nationality
+        - status
+        - createdAt
+        - documents
+      properties:
+        id:
+          type: integer
+        fullName:
+          type: string
+        dob:
+          type: ["string", "null"]
+        gender:
+          type: ["string", "null"]
+        nationality:
+          type: string
+        cccd:
+          type: ["string", "null"]
+        passportNo:
+          type: ["string", "null"]
+        passportExpiry:
+          type: ["string", "null"]
+        visaNo:
+          type: ["string", "null"]
+        visaExpiry:
+          type: ["string", "null"]
+        company:
+          type: ["string", "null"]
+        position:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        tempAddress:
+          type: ["string", "null"]
+        employeeCode:
+          type: ["string", "null"]
+        workPeriod:
+          type: ["string", "null"]
+        cuaKhau:
+          type: ["string", "null"]
+          description: "Cửa khẩu nhập cảnh"
+        photoUrl:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, resigned]
+        createdAt:
+          type: string
+        updatedAt:
+          type: ["string", "null"]
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Document"
+
+    EmployeeInput:
+      type: object
+      required:
+        - fullName
+        - nationality
+      properties:
+        fullName:
+          type: string
+        dob:
+          type: ["string", "null"]
+        gender:
+          type: ["string", "null"]
+        nationality:
+          type: string
+          default: "Trung Quốc"
+        cccd:
+          type: ["string", "null"]
+        passportNo:
+          type: ["string", "null"]
+        passportExpiry:
+          type: ["string", "null"]
+        visaNo:
+          type: ["string", "null"]
+        visaExpiry:
+          type: ["string", "null"]
+        company:
+          type: ["string", "null"]
+        position:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        tempAddress:
+          type: ["string", "null"]
+        employeeCode:
+          type: ["string", "null"]
+        workPeriod:
+          type: ["string", "null"]
+        cuaKhau:
+          type: ["string", "null"]
+          description: "Cửa khẩu nhập cảnh"
+        status:
+          type: string
+          enum: [active, resigned]
+          default: active
+
+    EmployeeUpdate:
+      type: object
+      properties:
+        fullName:
+          type: string
+        dob:
+          type: ["string", "null"]
+        gender:
+          type: ["string", "null"]
+        nationality:
+          type: string
+        cccd:
+          type: ["string", "null"]
+        passportNo:
+          type: ["string", "null"]
+        passportExpiry:
+          type: ["string", "null"]
+        visaNo:
+          type: ["string", "null"]
+        visaExpiry:
+          type: ["string", "null"]
+        company:
+          type: ["string", "null"]
+        position:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        tempAddress:
+          type: ["string", "null"]
+        employeeCode:
+          type: ["string", "null"]
+        workPeriod:
+          type: ["string", "null"]
+        cuaKhau:
+          type: ["string", "null"]
+          description: "Cửa khẩu nhập cảnh"
+        status:
+          type: string
+          enum: [active, resigned]
+
+    Document:
+      type: object
+      required:
+        - id
+        - employeeId
+        - docType
+        - status
+        - createdAt
+      properties:
+        id:
+          type: integer
+        employeeId:
+          type: integer
+        docType:
+          type: string
+        idNumber:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [valid, expiring, expired, pending, missing]
+        issueDate:
+          type: ["string", "null"]
+        expiryDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: ["string", "null"]
+
+    DocumentInput:
+      type: object
+      required:
+        - docType
+        - status
+      properties:
+        docType:
+          type: string
+        idNumber:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [valid, expiring, expired, pending, missing]
+        issueDate:
+          type: ["string", "null"]
+        expiryDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    DocumentUpdate:
+      type: object
+      properties:
+        docType:
+          type: string
+        idNumber:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [valid, expiring, expired, pending, missing]
+        issueDate:
+          type: ["string", "null"]
+        expiryDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    DocumentHistory:
+      type: object
+      required:
+        - id
+        - documentId
+        - changeType
+        - createdAt
+      properties:
+        id:
+          type: integer
+        documentId:
+          type: integer
+        changeType:
+          type: string
+        oldData:
+          type: ["string", "null"]
+        newData:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    DocxTemplate:
+      type: object
+      required:
+        - id
+        - name
+        - fileName
+        - uploadedAt
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        fileName:
+          type: string
+        uploadedAt:
+          type: string
+
+    TemplateUpload:
+      type: object
+      required:
+        - file
+        - name
+      properties:
+        file:
+          type: string
+          format: binary
+        name:
+          type: string
+        description:
+          type: string
+
+    ImportFileUpload:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+
+    PhotoUpload:
+      type: object
+      required: [photo]
+      properties:
+        photo:
+          type: string
+          format: binary
+
+    ImportRow:
+      type: object
+      properties:
+        id: { type: string }
+        T1: { type: string }
+        T2: { type: string }
+        T3: { type: string }
+        T4: { type: string }
+        T5: { type: string }
+        T6: { type: string }
+        T7: { type: string }
+        T8: { type: string }
+        T9: { type: string }
+        T10: { type: string }
+        T11: { type: string }
+        T12: { type: string }
+        T13: { type: string }
+        T14: { type: string }
+        T15: { type: string }
+        T16: { type: string }
+        T17: { type: string }
+        company: { type: string }
+        phone: { type: string }
+        soGPLD: { type: string }
+        capGPLD: { type: string }
+        hhGPLD: { type: string }
+        soSKSK: { type: string }
+        capSKSK: { type: string }
+        hhSKSK: { type: string }
+        soLLTP: { type: string }
+        capLLTP: { type: string }
+        hhLLTP: { type: string }
+        soXNTT: { type: string }
+        capXNTT: { type: string }
+        hhXNTT: { type: string }
+        capTRC: { type: string }
+
+    ImportParseResult:
+      type: object
+      required: [rows, total]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRow"
+        total:
+          type: integer
+
+    ImportConfirmInput:
+      type: object
+      required: [rows]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRow"
+
+    ImportResultItem:
+      type: object
+      required: [index, status]
+      properties:
+        index:
+          type: integer
+        status:
+          type: string
+          enum: [ok, error]
+        employeeId:
+          type: ["integer", "null"]
+        name:
+          type: ["string", "null"]
+        error:
+          type: ["string", "null"]
+
+    ImportConfirmResult:
+      type: object
+      required: [results, ok, errors]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportResultItem"
+        ok:
+          type: integer
+        errors:
+          type: integer
+
+    GenerateDocsInput:
+      type: object
+      required:
+        - employeeIds
+        - templateId
+      properties:
+        employeeIds:
+          type: array
+          items:
+            type: integer
+        templateId:
+          type: integer
+        soCongVan:
+          type: ["string", "null"]
+          description: "Số công văn, được thay vào tag {{SO_CONG_VAN}} trong template"
+        ngayNhapCanh:
+          type: ["string", "null"]
+          description: "Ngày nhập cảnh nhập tay, được thay vào tag {{NGAY_NHAP_CANH}} trong template"
+        cuaKhau:
+          type: ["string", "null"]
+          description: "Cửa khẩu nhập cảnh, được thay vào tag {{CUA_KHAU}} trong template (ghi đè giá trị từ hồ sơ nhân viên)"
+
+    OcrInput:
+      type: object
+      required:
+        - image
+      properties:
+        image:
+          type: string
+          format: binary
+
+    OcrResult:
+      type: object
+      properties:
+        fullName:
+          type: ["string", "null"]
+        passportNo:
+          type: ["string", "null"]
+        passportExpiry:
+          type: ["string", "null"]
+        dob:
+          type: ["string", "null"]
+        rawText:
+          type: string
+
+    DashboardStats:
+      type: object
+      required:
+        - totalEmployees
+        - activeEmployees
+        - resignedEmployees
+        - totalDocuments
+        - expiringIn30
+        - expiringIn60
+        - expiringIn90
+        - expiredDocuments
+        - missingDocuments
+      properties:
+        totalEmployees:
+          type: integer
+        activeEmployees:
+          type: integer
+        resignedEmployees:
+          type: integer
+        totalDocuments:
+          type: integer
+        expiringIn30:
+          type: integer
+        expiringIn60:
+          type: integer
+        expiringIn90:
+          type: integer
+        expiredDocuments:
+          type: integer
+        missingDocuments:
+          type: integer
+
+    ExpiringDocument:
+      type: object
+      required:
+        - documentId
+        - employeeId
+        - employeeName
+        - docType
+        - expiryDate
+        - daysUntilExpiry
+        - status
+      properties:
+        documentId:
+          type: integer
+        employeeId:
+          type: integer
+        employeeName:
+          type: string
+        docType:
+          type: string
+        idNumber:
+          type: ["string", "null"]
+        expiryDate:
+          type: string
+        daysUntilExpiry:
+          type: integer
+        status:
+          type: string
+
+    MissingDocEmployee:
+      type: object
+      required:
+        - employeeId
+        - employeeName
+        - missingDocTypes
+      properties:
+        employeeId:
+          type: integer
+        employeeName:
+          type: string
+        nationality:
+          type: string
+        missingDocTypes:
+          type: array
+          items:
+            type: string
+
+    ChartData:
+      type: object
+      required:
+        - documentStatusPie
+        - expirationByMonth
+      properties:
+        documentStatusPie:
+          type: array
+          items:
+            $ref: "#/components/schemas/PieSlice"
+        expirationByMonth:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthBar"
+
+    PieSlice:
+      type: object
+      required:
+        - label
+        - value
+      properties:
+        label:
+          type: string
+        value:
+          type: integer
+        color:
+          type: string
+
+    MonthBar:
+      type: object
+      required:
+        - month
+        - count
+      properties:
+        month:
+          type: string
+        count:
+          type: integer

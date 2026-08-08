@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Quản Lý Nhân Sự"
+version = "1.0.0"
+id = "artifacts/hrm"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22871
+
+[services.development]
+run = "pnpm --filter @workspace/hrm run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/hrm", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/hrm/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22871"
+BASE_PATH = "/"
