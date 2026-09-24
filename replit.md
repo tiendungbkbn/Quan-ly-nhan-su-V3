@@ -10,7 +10,7 @@ Hệ thống quản lý nhân sự dành cho HR quản lý nhân viên ngoại q
 - `pnpm run build` — build tất cả packages
 - `pnpm --filter @workspace/api-spec run codegen` — tạo lại API hooks và Zod schemas từ OpenAPI spec
 - `pnpm --filter @workspace/db run push` — đẩy thay đổi schema DB (chỉ dev)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required env: `DATABASE_URL` for development and `EXTERNAL_DATABASE_URL` for production PostgreSQL
 
 ## Stack
 
@@ -39,7 +39,9 @@ Hệ thống quản lý nhân sự dành cho HR quản lý nhân viên ngoại q
 - Document history tự động ghi log khi tạo/cập nhật document
 - DOCX template dùng Jinja2-style tags: {{T1}}...{{T13}} ánh xạ đến các field nhân viên
 - OCR fallback: nếu tesseract.js không có, dùng regex để trích xuất từ MRZ line
-- File upload lưu disk (multer diskStorage), không dùng object storage cho bản đầu
+- File upload persistent lưu App Storage; chỉ dùng thư mục tạm cho các file xử lý ngắn hạn
+
+- Production database dùng PostgreSQL bên ngoài qua `EXTERNAL_DATABASE_URL`; development vẫn dùng `DATABASE_URL`
 
 ## Product
 
