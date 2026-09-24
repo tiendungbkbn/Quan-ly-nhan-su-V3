@@ -24,26 +24,22 @@ interface Props {
   onSelect: (file: StorageFile & { servingUrl: string }) => void;
 }
 
-async function requestPresignedUrl(folder: string, filename: string, contentType: string) {
-  const res = await fetch("/api/storage/public-uploads/request-url", {
+async function uploadPublicFile(folder: string, file: File) {
+  const formData = new FormData();
+  formData.append("folder", folder);
+  formData.append("filename", file.name);
+  formData.append("contentType", file.type || "application/octet-stream");
+  formData.append("file", file);
+
+  const res = await fetch("/api/storage/public-uploads", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ folder, filename, contentType }),
+    body: formData,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || "Không thể lấy upload URL");
   }
-  return res.json() as Promise<{ uploadURL: string; objectPath: string; servingUrl: string }>;
-}
-
-async function uploadToGCS(uploadURL: string, file: File) {
-  const res = await fetch(uploadURL, {
-    method: "PUT",
-    headers: { "Content-Type": file.type || "application/octet-stream" },
-    body: file,
-  });
-  if (!res.ok) throw new Error(`Upload thất bại: ${res.status}`);
+  return res.json() as Promise<{ objectPath: string; servingUrl: string; name: string; size: number; updatedAt: string }>;
 }
 
 function formatSize(bytes: number) {
@@ -76,19 +72,14 @@ export function StorageFilePicker({ open, onClose, folder, accept, title, onSele
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
-      const { uploadURL, objectPath, servingUrl } = await requestPresignedUrl(
-        folder,
-        file.name,
-        file.type || "application/octet-stream",
-      );
-      await uploadToGCS(uploadURL, file);
+      const { objectPath, servingUrl, name, size, updatedAt } = await uploadPublicFile(folder, file);
       await queryClient.invalidateQueries({ queryKey: listKey });
       toast({ title: "Tải lên thành công", description: file.name });
       const storageFile: StorageFile = {
-        name: file.name,
+        name,
         objectPath,
-        size: file.size,
-        updatedAt: new Date().toISOString(),
+        size,
+        updatedAt,
       };
       onSelect({ ...storageFile, servingUrl });
       onClose();

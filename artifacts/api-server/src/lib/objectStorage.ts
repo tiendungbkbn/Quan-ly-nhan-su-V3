@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { Readable } from 'stream';
 import { File, Storage } from '@google-cloud/storage';
+import { Client } from '@replit/object-storage';
 
 import {
   canAccessObject,
@@ -29,6 +30,7 @@ export const objectStorageClient = new Storage({
   },
   projectId: '',
 });
+const appStorageClient = new Client();
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -111,28 +113,6 @@ export class ObjectStorageService {
     return new Response(webStream, { headers });
   }
 
-  async getObjectEntityUploadURL(): Promise<string> {
-    const privateObjectDir = this.getPrivateObjectDir();
-    if (!privateObjectDir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          'tool and set PRIVATE_OBJECT_DIR env var.',
-      );
-    }
-
-    const objectId = randomUUID();
-    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
-
-    const { bucketName, objectName } = parseObjectPath(fullPath);
-
-    return signObjectURL({
-      bucketName,
-      objectName,
-      method: 'PUT',
-      ttlSec: 900,
-    });
-  }
-
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith('/objects/')) {
       throw new ObjectNotFoundError();
@@ -157,6 +137,30 @@ export class ObjectStorageService {
       throw new ObjectNotFoundError();
     }
     return objectFile;
+  }
+
+  private getPrivateObjectName(objectPath: string): string {
+    if (!objectPath.startsWith('/objects/')) {
+      throw new ObjectNotFoundError();
+    }
+    const entityId = objectPath.slice('/objects/'.length);
+    if (!entityId) {
+      throw new ObjectNotFoundError();
+    }
+    const privateObjectDir = this.getPrivateObjectDir();
+    return parseObjectPath(`${privateObjectDir}/${entityId}`).objectName;
+  }
+
+  async downloadObjectEntityBuffer(objectPath: string): Promise<Buffer> {
+    const objectName = this.getPrivateObjectName(objectPath);
+    const result = await appStorageClient.downloadAsBytes(objectName);
+    if (!result.ok) {
+      if (result.error.statusCode === 404) {
+        throw new ObjectNotFoundError();
+      }
+      throw new Error(result.error.message);
+    }
+    return Buffer.from(result.value[0]);
   }
 
   normalizeObjectEntityPath(rawPath: string): string {
@@ -223,37 +227,53 @@ export class ObjectStorageService {
     const paths = this.getPublicObjectSearchPaths();
     const firstPath = paths[0];
     const fullPrefix = `${firstPath}/${folder}/`;
-    const { bucketName, objectName: prefix } = parseObjectPath(fullPrefix);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const [files] = await bucket.getFiles({ prefix });
-    return files
-      .filter((f) => f.name !== prefix && !f.name.endsWith('/'))
-      .map((f) => {
-        const filename = f.name.slice(prefix.length);
+    const { objectName: prefix } = parseObjectPath(fullPrefix);
+    const result = await appStorageClient.list({ prefix });
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+
+    return result.value
+      .filter((file) => file.name !== prefix && !file.name.endsWith('/'))
+      .map((file) => {
+        const filename = file.name.slice(prefix.length);
         return {
           name: filename,
           objectPath: `/public-objects/${folder}/${filename}`,
-          size: Number(f.metadata.size) || 0,
-          updatedAt: String(f.metadata.updated || ''),
+          size: 0,
+          updatedAt: '',
         };
       });
   }
 
   /**
-   * Generate a presigned PUT URL for uploading a file into a public sub-folder.
-   * Returns the upload URL and the resulting objectPath.
+   * Upload a file into a public App Storage folder using the official SDK.
    */
-  async getPublicObjectUploadURL(
+  async uploadPublicObjectBuffer(
     folder: string,
     filename: string,
+    buffer: Buffer,
     contentType: string,
-  ): Promise<{ uploadURL: string; objectPath: string }> {
+  ): Promise<string> {
     const paths = this.getPublicObjectSearchPaths();
-    const firstPath = paths[0];
-    const fullPath = `${firstPath}/${folder}/${filename}`;
-    const { bucketName, objectName } = parseObjectPath(fullPath);
-    const uploadURL = await signObjectURL({ bucketName, objectName, method: 'PUT', ttlSec: 900 });
-    return { uploadURL, objectPath: `/public-objects/${folder}/${filename}` };
+    const fullPath = `${paths[0]}/${folder}/${filename}`;
+    const { objectName } = parseObjectPath(fullPath);
+    const result = await appStorageClient.uploadFromBytes(objectName, buffer);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+
+    // Keep the existing GCS file metadata useful to callers that stream
+    // through the low-level client. The SDK remains the source of truth for
+    // the object write itself.
+    try {
+      const { bucketName } = parseObjectPath(fullPath);
+      await objectStorageClient.bucket(bucketName).file(objectName).setMetadata({ contentType });
+    } catch {
+      // Content type is a serving hint; the upload itself already succeeded.
+    }
+
+    return `/public-objects/${folder}/${filename}`;
   }
 
   /**
@@ -272,6 +292,21 @@ export class ObjectStorageService {
     throw new ObjectNotFoundError();
   }
 
+  async downloadPublicObjectBuffer(subPath: string): Promise<Buffer> {
+    for (const searchPath of this.getPublicObjectSearchPaths()) {
+      const fullPath = `${searchPath}/${subPath}`;
+      const { objectName } = parseObjectPath(fullPath);
+      const result = await appStorageClient.downloadAsBytes(objectName);
+      if (result.ok) {
+        return Buffer.from(result.value[0]);
+      }
+      if (result.error.statusCode !== 404) {
+        throw new Error(result.error.message);
+      }
+    }
+    throw new ObjectNotFoundError();
+  }
+
   /**
    * Upload a buffer directly to private object storage.
    * Returns the objectPath (e.g. /objects/uploads/<uuid>) for later retrieval.
@@ -283,13 +318,12 @@ export class ObjectStorageService {
     const privateObjectDir = this.getPrivateObjectDir();
     const objectId = randomUUID();
     const fullPath = `${privateObjectDir}/uploads/${objectId}`;
-    const { bucketName, objectName } = parseObjectPath(fullPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const file = bucket.file(objectName);
-    await file.save(buffer, {
-      metadata: { contentType },
-      resumable: false,
-    });
+    const { objectName } = parseObjectPath(fullPath);
+    const result = await appStorageClient.uploadFromBytes(objectName, buffer);
+    if (!result.ok) {
+      throw new Error(result.error.message);
+    }
+
     return `/objects/uploads/${objectId}`;
   }
 
@@ -299,8 +333,8 @@ export class ObjectStorageService {
    */
   async deleteObjectEntity(objectPath: string): Promise<void> {
     try {
-      const file = await this.getObjectEntityFile(objectPath);
-      await file.delete();
+      const objectName = this.getPrivateObjectName(objectPath);
+      await appStorageClient.delete(objectName, { ignoreNotFound: true });
     } catch {
       // ignore missing objects
     }
@@ -326,43 +360,4 @@ function parseObjectPath(path: string): {
     bucketName,
     objectName,
   };
-}
-
-async function signObjectURL({
-  bucketName,
-  objectName,
-  method,
-  ttlSec,
-}: {
-  bucketName: string;
-  objectName: string;
-  method: 'GET' | 'PUT' | 'DELETE' | 'HEAD';
-  ttlSec: number;
-}): Promise<string> {
-  const request = {
-    bucket_name: bucketName,
-    object_name: objectName,
-    method,
-    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-  };
-  const response = await fetch(
-    `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-      signal: AbortSignal.timeout(30_000),
-    },
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Failed to sign object URL, errorcode: ${response.status}, ` +
-        `make sure you're running on Replit`,
-    );
-  }
-
-  const { signed_url: signedURL } = await response.json() as { signed_url: string };
-  return signedURL;
 }

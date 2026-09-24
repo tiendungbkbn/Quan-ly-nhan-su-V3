@@ -193,7 +193,7 @@ export default function Templates() {
                 <div className="font-semibold text-slate-900 dark:text-white text-sm mb-1 truncate">{tmpl.name}</div>
                 <div className="text-xs text-slate-500 truncate">{tmpl.description || t("no_desc")}</div>
                 <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400">
-                  {new Date(tmpl.createdAt).toLocaleDateString("vi-VN")}
+                  {new Date(tmpl.uploadedAt).toLocaleDateString("vi-VN")}
                 </div>
               </CardContent>
             </Card>

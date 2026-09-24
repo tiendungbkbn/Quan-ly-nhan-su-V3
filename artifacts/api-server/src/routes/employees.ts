@@ -316,12 +316,10 @@ router.get("/employees/:id/photo", async (req, res): Promise<void> => {
   // Private GCS path
   if (isObjectPath(emp.photoUrl)) {
     try {
-      const file = await storageService.getObjectEntityFile(emp.photoUrl);
-      const [metadata] = await file.getMetadata();
-      res.setHeader("Content-Type", (metadata.contentType as string) || "image/jpeg");
+      const buffer = await storageService.downloadObjectEntityBuffer(emp.photoUrl);
+      res.setHeader("Content-Type", "image/jpeg");
       res.setHeader("Cache-Control", "private, max-age=86400");
-      if (metadata.size) res.setHeader("Content-Length", String(metadata.size));
-      file.createReadStream().pipe(res);
+      res.send(buffer);
     } catch (err) {
       if (err instanceof ObjectNotFoundError) {
         res.status(404).json({ error: "File ảnh không tìm thấy" });

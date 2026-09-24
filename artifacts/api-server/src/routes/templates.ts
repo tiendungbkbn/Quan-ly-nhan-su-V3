@@ -52,16 +52,12 @@ function isPublicObjectPath(fileName: string): boolean {
  */
 async function readTemplateBuffer(fileName: string): Promise<Buffer> {
   if (isObjectPath(fileName)) {
-    const file = await storageService.getObjectEntityFile(fileName);
-    const [buffer] = await file.download();
-    return Buffer.from(buffer);
+    return storageService.downloadObjectEntityBuffer(fileName);
   }
   if (isPublicObjectPath(fileName)) {
     // /public-objects/templates/foo.docx → subPath = templates/foo.docx
     const subPath = fileName.slice("/public-objects/".length);
-    const file = await storageService.getPublicObjectFile(subPath);
-    const [buffer] = await file.download();
-    return Buffer.from(buffer);
+    return storageService.downloadPublicObjectBuffer(subPath);
   }
   return fs.readFileSync(path.join(TEMPLATES_DIR, fileName));
 }
