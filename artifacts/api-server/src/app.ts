@@ -27,7 +27,15 @@ app.use(
   }),
 );
 app.use(cors());
-app.use(express.json());
+const defaultJsonParser = express.json();
+const importConfirmJsonParser = express.json({ limit: "10mb" });
+app.use((req, res, next) => {
+  const parser =
+    req.path === "/api/import-employees/confirm"
+      ? importConfirmJsonParser
+      : defaultJsonParser;
+  parser(req, res, next);
+});
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);

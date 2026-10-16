@@ -91,8 +91,12 @@ export default function ImportEmployees() {
           setConfirmResult(data as any);
           setPhase("done");
         },
-        onError: () => {
-          toast({ variant: "destructive", title: t("error"), description: "Không thể lưu dữ liệu. Vui lòng thử lại." });
+        onError: (err: any) => {
+          const description =
+            err?.status === 413
+              ? "Dữ liệu nhập quá lớn để gửi một lần. Hãy chia file thành các phần nhỏ hơn rồi nhập lại."
+              : err?.data?.error ?? "Không thể lưu dữ liệu. Vui lòng thử lại.";
+          toast({ variant: "destructive", title: t("error"), description });
         },
       }
     );
