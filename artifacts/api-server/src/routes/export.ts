@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, and, or, inArray } from "drizzle-orm";
+import { eq, ilike, and, or, inArray, isNull } from "drizzle-orm";
 import { db, employeesTable, documentsTable } from "@workspace/db";
 import { z } from "zod/v4";
 import * as XLSX from "xlsx";
@@ -9,6 +9,8 @@ const router: IRouter = Router();
 const ExportEmployeesQuery = z.object({
   search: z.string().optional(),
   status: z.enum(["active", "resigned"]).optional(),
+  company: z.string().optional(),
+  unassignedCompany: z.enum(["true", "false"]).optional(),
 });
 
 const ExportDocsParams = z.object({
@@ -68,6 +70,11 @@ router.get("/employees/export-excel", async (req, res): Promise<void> => {
   if (query.data.status) {
     conditions.push(eq(employeesTable.status, query.data.status));
   }
+  if (query.data.company) {
+    conditions.push(eq(employeesTable.company, query.data.company));
+  } else if (query.data.unassignedCompany === "true") {
+    conditions.push(or(isNull(employeesTable.company), eq(employeesTable.company, ""))!);
+  }
   if (query.data.search) {
     const term = `%${query.data.search}%`;
     conditions.push(
@@ -75,6 +82,8 @@ router.get("/employees/export-excel", async (req, res): Promise<void> => {
         ilike(employeesTable.fullName, term),
         ilike(employeesTable.passportNo, term),
         ilike(employeesTable.position, term),
+        ilike(employeesTable.company, term),
+        ilike(employeesTable.employeeCode, term),
       )
     );
   }

@@ -509,6 +509,29 @@ export const ListEmployeesStatus = {
   resigned: 'resigned',
 } as const;
 
+export type ExportEmployeesExcelParams = {
+search?: string;
+status?: ExportEmployeesExcelStatus;
+company?: string;
+unassignedCompany?: ExportEmployeesExcelUnassignedCompany;
+};
+
+export type ExportEmployeesExcelStatus = typeof ExportEmployeesExcelStatus[keyof typeof ExportEmployeesExcelStatus];
+
+
+export const ExportEmployeesExcelStatus = {
+  active: 'active',
+  resigned: 'resigned',
+} as const;
+
+export type ExportEmployeesExcelUnassignedCompany = typeof ExportEmployeesExcelUnassignedCompany[keyof typeof ExportEmployeesExcelUnassignedCompany];
+
+
+export const ExportEmployeesExcelUnassignedCompany = {
+  true: 'true',
+  false: 'false',
+} as const;
+
 export type GetExpiringDocumentsParams = {
 days?: number;
 };

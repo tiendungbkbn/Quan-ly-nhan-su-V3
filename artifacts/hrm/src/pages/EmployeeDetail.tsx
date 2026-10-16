@@ -5,6 +5,7 @@ import {
   useUpdateEmployee,
   useDeleteEmployee,
   getGetEmployeeQueryKey,
+  getGetDocumentHistoryQueryKey,
   getListEmployeesQueryKey,
   useCreateEmployeeDocument,
   useUpdateDocument,
@@ -165,12 +166,12 @@ function PersonalInfoTab({ employee, DOC_STATUS_LABELS }: { employee: any; DOC_S
       dob: (fd.get("dob") as string) || null,
       gender: (fd.get("gender") as string) || null,
       nationality: fd.get("nationality") as string,
+      company: (fd.get("company") as string)?.trim() || null,
       cccd: (fd.get("cccd") as string) || null,
       passportNo: (fd.get("passportNo") as string) || null,
       passportExpiry: (fd.get("passportExpiry") as string) || null,
       visaNo: (fd.get("visaNo") as string) || null,
       visaExpiry: (fd.get("visaExpiry") as string) || null,
-      company: (fd.get("company") as string) || null,
       position: (fd.get("position") as string) || null,
       phone: (fd.get("phone") as string) || null,
       email: (fd.get("email") as string) || null,
@@ -204,6 +205,7 @@ function PersonalInfoTab({ employee, DOC_STATUS_LABELS }: { employee: any; DOC_S
           <div className="grid grid-cols-2 gap-x-4 gap-y-2">
             <F label={t("detail_field_name")} tag="HO_TEN"><Input name="fullName" defaultValue={employee.fullName} required className="h-8 text-sm" /></F>
             <F label={t("detail_field_nationality")} tag="QUOC_TICH"><Input name="nationality" defaultValue={employee.nationality} required className="h-8 text-sm" /></F>
+            <F label={t("detail_field_company")} tag="CONG_TY"><Input name="company" defaultValue={employee.company || ""} className="h-8 text-sm" /></F>
             <F label={t("detail_field_dob")} tag="NGAY_SINH"><Input name="dob" type="date" defaultValue={employee.dob ? employee.dob.split("T")[0] : ""} className="h-8 text-sm" /></F>
             <F label={t("detail_field_gender")} tag="GIOI_TINH">
               <select name="gender" defaultValue={employee.gender || ""} className="w-full h-8 px-2 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm">
@@ -713,7 +715,12 @@ function HistoryTab({ documents }: { documents: Document[] }) {
     if (documents.length > 0 && selectedDocId === "") setSelectedDocId(documents[0].id);
   }, [documents]);
 
-  const { data: history, isLoading } = useGetDocumentHistory(selectedDocId as number, { query: { enabled: !!selectedDocId } });
+  const { data: history, isLoading } = useGetDocumentHistory(selectedDocId as number, {
+    query: {
+      queryKey: getGetDocumentHistoryQueryKey(selectedDocId as number),
+      enabled: !!selectedDocId,
+    },
+  });
 
   return (
     <Card className="border-slate-200 dark:border-slate-800 shadow-sm">

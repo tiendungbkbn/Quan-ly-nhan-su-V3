@@ -114,6 +114,19 @@ export const CreateEmployeeResponse = zod.object({
 
 
 /**
+ * @summary Export filtered employee list as an Excel workbook
+ */
+export const ExportEmployeesExcelQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "status": zod.enum(['active', 'resigned']).optional(),
+  "company": zod.coerce.string().optional(),
+  "unassignedCompany": zod.enum(['true', 'false']).optional()
+})
+
+export const ExportEmployeesExcelResponse = zod.unknown()
+
+
+/**
  * @summary Get employee by ID
  */
 export const GetEmployeeParams = zod.object({

@@ -128,7 +128,7 @@ export default function CreateEmployee() {
       passportNo:    hc.idNumber || null,
       passportExpiry: hc.expiryDate || null,
       visaNo:        visa.idNumber || null,
-      company:       (fd.get("company") as string) || null,
+      company:       (fd.get("company") as string).trim() || null,
       position:      (fd.get("position") as string) || null,
       phone:         (fd.get("phone") as string) || null,
       email:         (fd.get("email") as string) || null,
@@ -277,8 +277,18 @@ export default function CreateEmployee() {
 
                 <div className="col-span-2 border-t border-slate-100 dark:border-slate-800" />
 
-                <F label={t("detail_field_nationality")} tag="QUOC_TICH" className="col-span-2">
-                  <Inp name="company" placeholder="" />
+                <F label={t("detail_field_company")} tag="CONG_TY" className="col-span-2">
+                  <Inp
+                    name="company"
+                    list="employee-company-options"
+                    placeholder={t("detail_field_company")}
+                    data-testid="input-employee-company"
+                  />
+                  <datalist id="employee-company-options">
+                    {[...new Set((allEmployees ?? []).map((employee) => employee.company?.trim()).filter((company): company is string => !!company))]
+                      .sort((a, b) => a.localeCompare(b, "vi"))
+                      .map((company) => <option key={company} value={company} />)}
+                  </datalist>
                 </F>
                 <F label={t("detail_field_position")} tag="CHUC_VU" className="col-span-2">
                   <Inp name="position" placeholder={t("detail_field_position")} />

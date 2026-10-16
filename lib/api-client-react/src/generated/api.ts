@@ -32,6 +32,7 @@ import type {
   EmployeeInput,
   EmployeeUpdate,
   ExpiringDocument,
+  ExportEmployeesExcelParams,
   GenerateDocsInput,
   GetExpiringDocumentsParams,
   HealthStatus,
@@ -306,6 +307,90 @@ export const useCreateEmployee = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCreateEmployeeMutationOptions(options));
     }
+
+export const getExportEmployeesExcelUrl = (params?: ExportEmployeesExcelParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/employees/export-excel?${stringifiedParams}` : `/api/employees/export-excel`
+}
+
+/**
+ * @summary Export filtered employee list as an Excel workbook
+ */
+export const exportEmployeesExcel = async (params?: ExportEmployeesExcelParams, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getExportEmployeesExcelUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportEmployeesExcelQueryKey = (params?: ExportEmployeesExcelParams,) => {
+    return [
+    `/api/employees/export-excel`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportEmployeesExcelQueryOptions = <TData = Awaited<ReturnType<typeof exportEmployeesExcel>>, TError = ErrorType<void>>(params?: ExportEmployeesExcelParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportEmployeesExcel>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportEmployeesExcelQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportEmployeesExcel>>> = ({ signal }) => exportEmployeesExcel(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportEmployeesExcel>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportEmployeesExcelQueryResult = NonNullable<Awaited<ReturnType<typeof exportEmployeesExcel>>>
+export type ExportEmployeesExcelQueryError = ErrorType<void>
+
+
+/**
+ * @summary Export filtered employee list as an Excel workbook
+ */
+
+export function useExportEmployeesExcel<TData = Awaited<ReturnType<typeof exportEmployeesExcel>>, TError = ErrorType<void>>(
+ params?: ExportEmployeesExcelParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportEmployeesExcel>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportEmployeesExcelQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetEmployeeUrl = (id: number,) => {
 

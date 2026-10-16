@@ -2,7 +2,9 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { 
   useListEmployees,
   useListTemplates,
+  exportEmployeesExcel,
   getListEmployeesQueryKey,
+  getListTemplatesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -15,10 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-async function downloadExcel(url: string, filename: string) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Xuất Excel thất bại");
-  const blob = await res.blob();
+function downloadExcel(blob: Blob, filename: string) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = filename;
@@ -32,6 +31,7 @@ export default function Employees() {
   const { t } = useLanguage();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"active" | "resigned" | "">("active");
+  const [companyFilter, setCompanyFilter] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -66,14 +66,44 @@ export default function Employees() {
   };
 
   const { data: rawEmployees, isLoading } = useListEmployees(
-    { search: search || undefined, status: status || undefined },
-    { query: { refetchOnMount: "always" } }
+    undefined,
+    { query: { queryKey: getListEmployeesQueryKey(), refetchOnMount: "always" } }
   );
 
-  // Sort alphabetically by name
+  const companies = useMemo(
+    () => [...new Set((rawEmployees ?? []).map((employee) => employee.company?.trim()).filter((company): company is string => !!company))]
+      .sort((a, b) => a.localeCompare(b, "vi")),
+    [rawEmployees],
+  );
+  const companyCounts = useMemo(
+    () => (rawEmployees ?? [])
+      .filter((employee) => !status || employee.status === status)
+      .reduce<Record<string, number>>((counts, employee) => {
+        const key = employee.company?.trim() || "";
+        counts[key] = (counts[key] ?? 0) + 1;
+        return counts;
+      }, {}),
+    [rawEmployees, status],
+  );
+  const statusEmployeeCount = useMemo(
+    () => (rawEmployees ?? []).filter((employee) => !status || employee.status === status).length,
+    [rawEmployees, status],
+  );
+
+  // Keep company options complete while applying search and filters to the loaded list.
   const employees = useMemo(
-    () => rawEmployees ? [...rawEmployees].sort((a, b) => a.fullName.localeCompare(b.fullName, "vi")) : rawEmployees,
-    [rawEmployees]
+    () => (rawEmployees ?? [])
+      .filter((employee) => {
+        if (status && employee.status !== status) return false;
+        if (companyFilter === "__unassigned__" && employee.company?.trim()) return false;
+        if (companyFilter && companyFilter !== "__unassigned__" && employee.company?.trim() !== companyFilter) return false;
+        const term = search.trim().toLocaleLowerCase("vi");
+        if (!term) return true;
+        return [employee.fullName, employee.passportNo, employee.position, employee.company, employee.employeeCode]
+          .some((value) => value?.toLocaleLowerCase("vi").includes(term));
+      })
+      .sort((a, b) => a.fullName.localeCompare(b.fullName, "vi")),
+    [rawEmployees, status, companyFilter, search],
   );
 
   // Save scroll position to sessionStorage on every scroll
@@ -111,14 +141,13 @@ export default function Employees() {
   const handleExportExcel = async () => {
     setIsExporting(true);
     try {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (status) params.set("status", status);
-      const qs = params.toString();
-      await downloadExcel(
-        `/api/employees/export-excel${qs ? `?${qs}` : ""}`,
-        `danh_sach_nhan_vien.xlsx`
-      );
+      const blob = await exportEmployeesExcel({
+        search: search.trim() || undefined,
+        status: status || undefined,
+        company: companyFilter && companyFilter !== "__unassigned__" ? companyFilter : undefined,
+        unassignedCompany: companyFilter === "__unassigned__" ? "true" : undefined,
+      });
+      downloadExcel(blob, "danh_sach_nhan_vien.xlsx");
       toast({ title: t("emp_export_ok") });
     } catch {
       toast({ variant: "destructive", title: t("error"), description: t("emp_export_err") });
@@ -221,7 +250,7 @@ export default function Employees() {
       <Card className="border-slate-200 dark:border-slate-800 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
 
         {/* Search / filter bar — never scrolls */}
-        <div className="p-3 border-b border-slate-100 dark:border-slate-800 flex gap-3 shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
+        <div className="p-3 border-b border-slate-100 dark:border-slate-800 flex flex-wrap gap-3 shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input
@@ -229,6 +258,7 @@ export default function Employees() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 h-9 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800"
+              data-testid="input-employee-search"
             />
           </div>
           <div className="relative w-44">
@@ -242,6 +272,31 @@ export default function Employees() {
               <option value="active">{t("emp_active")}</option>
               <option value="resigned">{t("emp_resigned")}</option>
             </select>
+          </div>
+          <div className="relative w-52">
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <select
+              value={companyFilter}
+              onChange={(e) => setCompanyFilter(e.target.value)}
+              aria-label={t("detail_field_company")}
+              data-testid="select-employee-company"
+              className="w-full h-9 pl-9 pr-4 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
+            >
+              <option value="">{t("emp_all_companies")} ({statusEmployeeCount})</option>
+              {companies.map((company) => (
+                <option key={company} value={company}>
+                  {company} ({companyCounts[company] ?? 0} {t("emp_employee_count")})
+                </option>
+              ))}
+              {(companyCounts[""] ?? 0) > 0 && (
+                <option value="__unassigned__">
+                  {t("emp_unassigned_company")} ({companyCounts[""]} {t("emp_employee_count")})
+                </option>
+              )}
+            </select>
+          </div>
+          <div className="ml-auto self-center text-xs text-slate-500" data-testid="text-employee-filter-count">
+            {employees.length} / {statusEmployeeCount} {t("emp_employee_count")}
           </div>
         </div>
 
@@ -377,7 +432,9 @@ export default function Employees() {
 function GenerateDocsDialog({ open, onOpenChange, selectedIds }: { open: boolean, onOpenChange: (o: boolean) => void, selectedIds: number[] }) {
   const { t } = useLanguage();
   const { toast } = useToast();
-  const { data: templates, isLoading } = useListTemplates({ query: { enabled: open } });
+  const { data: templates, isLoading } = useListTemplates({
+    query: { queryKey: getListTemplatesQueryKey(), enabled: open },
+  });
   const [selectedTemplate, setSelectedTemplate] = useState<{ id: number; name: string } | null>(null);
   const [soCongVan, setSoCongVan] = useState("");
   const [ngayNhapCanh, setNgayNhapCanh] = useState("");
